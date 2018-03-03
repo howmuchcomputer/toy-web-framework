@@ -8,7 +8,7 @@ class App
   def call(env)
     request = Rack::Request.new(env)
     @routes.each do |route|
-      content = route.match(request.path)
+      content = route.match(request)
       return [200, {}, [content]] if content
     end
     [404, {}, ["Not found"]]
@@ -31,11 +31,25 @@ class App
 
   class Route < Struct.new(:route_spec, :block)
     def match(request)
-      if request == route_spec
-        "ok"
-      else
-        nil
+      path_components = request.path.split('/')
+      spec_components = route_spec.split('/')
+
+      params = {}
+
+      return nil unless path_components.length == spec_components.length
+      
+      path_components.zip(spec_components).each do |path_comp, spec_comp|
+        is_var = spec_comp.start_with?(':')
+
+        if is_var
+          key = spec_comp.sub(/\A:/, '')
+          params[key] = path_comp
+        else
+          return nil unless path_comp == spec_comp
+        end
       end
+
+      block.call(params)
     end
   end
 end
